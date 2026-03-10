@@ -103,9 +103,16 @@ const TRANSLATIONS = {
     importSuccess: 'Données importées avec succès !',
     importError: 'Erreur lors de l\'importation. Fichier invalide.',
     whatsappMessage: (name: string, month: string, amount: number) => 
-      `Cher ${name}, le groupement Hsseiy Ebekay vous informe que votre cotisation de ${month} est en attente. Montant : ${amount} MRU.`,
+      `Cher ${name}, le groupement Hsseiy Ebekay vous informe que votre cotisation de ${month} est en attente. Montant : ${amount} MRU. Merci, Mboy.`,
     whatsappSummary: (name: string, paid: number, remaining: number) =>
-      `Bilan Hsseiy Ebekay pour ${name} :\n- Total payé : ${paid} MRU\n- Reste à payer : ${remaining} MRU.`
+      `Bilan Hsseiy Ebekay pour ${name} :\n- Total payé : ${paid} MRU\n- Reste à payer : ${remaining} MRU.\nMerci, Mboy.`,
+    whatsappGlobalSummary: (totalPaid: number, totalRemaining: number, lateCount: number) =>
+      `Rapport Global Hsseiy Ebekay :\n- Total collecté : ${totalPaid.toLocaleString()} MRU\n- Reste à percevoir : ${totalRemaining.toLocaleString()} MRU\n- Membres en retard : ${lateCount}\nResponsable: Mboy`,
+    reminderCenter: 'Centre de Rappels',
+    lateMembers: 'Membres en retard',
+    sendAllReminders: 'Envoyer les rappels',
+    globalReport: 'Rapport Global',
+    noLateMembers: 'Aucun retard de paiement détecté !'
   },
   ar: {
     title: 'حصي ابكاي',
@@ -140,9 +147,16 @@ const TRANSLATIONS = {
     importSuccess: 'تم استيراد البيانات بنجاح!',
     importError: 'خطأ في الاستيراد. ملف غير صالح.',
     whatsappMessage: (name: string, month: string, amount: number) => 
-      `عزيزي ${name}، يحيطكم تجمع "حصي ابكاي" علماً بأن مساهمتكم لشهر ${month} قيد الانتظار. المبلغ: ${amount} أوقية.`,
+      `عزيزي ${name}، يحيطكم تجمع "حصي ابكاي" علماً بأن مساهمتكم لشهر ${month} قيد الانتظار. المبلغ: ${amount} أوقية. شكرا، امبوي.`,
     whatsappSummary: (name: string, paid: number, remaining: number) =>
-      `حصيلة "حصي ابكاي" لـ ${name} :\n- المجموع المدفوع: ${paid} أوقية\n- المتبقي: ${remaining} أوقية.`
+      `حصيلة "حصي ابكاي" لـ ${name} :\n- المجموع المدفوع: ${paid} أوقية\n- المتبقي: ${remaining} أوقية.\nشكرا، امبوي.`,
+    whatsappGlobalSummary: (totalPaid: number, totalRemaining: number, lateCount: number) =>
+      `تقرير شامل "حصي ابكاي" :\n- إجمالي المحصل: ${totalPaid.toLocaleString()} أوقية\n- المتبقي للتحصيل: ${totalRemaining.toLocaleString()} أوقية\n- عدد المتأخرين: ${lateCount}\nالمسؤول: امبوي`,
+    reminderCenter: 'مركز التذكيرات',
+    lateMembers: 'الأعضاء المتأخرون',
+    sendAllReminders: 'إرسال التذكيرات',
+    globalReport: 'التقرير العام',
+    noLateMembers: 'لا يوجد متأخرات في الدفع حالياً!'
   }
 };
 
@@ -159,6 +173,7 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [activePayment, setActivePayment] = useState<{ memberId: string, month: number } | null>(null);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
@@ -274,6 +289,24 @@ export default function App() {
     const message = t.whatsappSummary(member.name, totalPaid, remaining);
     const encodedMessage = encodeURIComponent(message);
     const url = `https://wa.me/${member.phone}?text=${encodedMessage}`;
+    window.open(url, '_blank');
+  };
+
+  const sendWhatsAppGlobalSummary = () => {
+    let totalPaid = 0;
+    let totalRemaining = 0;
+    let lateCount = 0;
+
+    members.forEach(m => {
+      const stats = getMemberStats(m);
+      totalPaid += stats.totalPaid;
+      totalRemaining += stats.remaining;
+      if (stats.remaining > 0) lateCount++;
+    });
+
+    const message = t.whatsappGlobalSummary(totalPaid, totalRemaining, lateCount);
+    const encodedMessage = encodeURIComponent(message);
+    const url = `https://wa.me/?text=${encodedMessage}`;
     window.open(url, '_blank');
   };
 
@@ -637,6 +670,15 @@ export default function App() {
             
             {/* Add Member */}
             <button 
+              onClick={() => setIsReminderModalOpen(true)}
+              className="flex items-center gap-2 bg-emerald-100 text-emerald-700 px-3 py-2 rounded-lg hover:bg-emerald-200 transition-all text-sm font-semibold"
+              title={t.reminderCenter}
+            >
+              <MessageCircle size={18} />
+              <span className="hidden lg:inline">{t.reminderCenter}</span>
+            </button>
+
+            <button 
               onClick={() => {
                 setEditingMember(null);
                 setIsMemberModalOpen(true);
@@ -802,6 +844,82 @@ export default function App() {
       <footer className="max-w-7xl mx-auto px-4 py-12 text-center text-stone-400 text-xs font-medium uppercase tracking-widest">
         &copy; {currentYear} {t.title} &bull; Responsable: Mboy
       </footer>
+
+      {/* Reminder Center Modal */}
+      <AnimatePresence>
+        {isReminderModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsReminderModalOpen(false)}
+              className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+            >
+              <div className="p-6 border-b border-stone-100 flex justify-between items-center bg-emerald-50">
+                <div>
+                  <h2 className="text-lg font-bold text-emerald-900 flex items-center gap-2">
+                    <MessageCircle size={20} />
+                    {t.reminderCenter}
+                  </h2>
+                  <p className="text-xs text-emerald-600 font-medium">{t.lateMembers}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={sendWhatsAppGlobalSummary}
+                    className="flex items-center gap-2 bg-white text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-200 hover:bg-emerald-50 transition-all text-xs font-bold"
+                  >
+                    <Share2 size={14} />
+                    {t.globalReport}
+                  </button>
+                  <button onClick={() => setIsReminderModalOpen(false)} className="text-stone-400 hover:text-stone-600">
+                    <XCircle size={24} />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-3">
+                  {members.filter(m => getMemberStats(m).remaining > 0).length > 0 ? (
+                    members.filter(m => getMemberStats(m).remaining > 0).map(member => {
+                      const { remaining } = getMemberStats(member);
+                      const firstUnpaid = Array.from({length: 12}).findIndex((_, i) => 
+                        getPaymentStatus(member.id, i, member.monthlyAmount) !== 'paid'
+                      );
+                      return (
+                        <div key={member.id} className="flex items-center justify-between p-4 bg-stone-50 rounded-xl border border-stone-100 hover:border-emerald-200 transition-all group">
+                          <div>
+                            <div className="font-bold text-stone-900">{member.name}</div>
+                            <div className="text-xs text-red-500 font-bold">{remaining.toLocaleString()} {t.mru} {t.remaining}</div>
+                          </div>
+                          <button 
+                            onClick={() => sendWhatsAppReminder(member, firstUnpaid !== -1 ? firstUnpaid : 0)}
+                            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-all shadow-sm text-xs font-bold"
+                          >
+                            <MessageCircle size={14} />
+                            {t.sendReminder}
+                          </button>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-10 text-stone-400">
+                      <CheckCircle2 size={48} className="mx-auto mb-3 opacity-20" />
+                      <p className="font-medium">{t.noLateMembers}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Member Modal */}
       <AnimatePresence>
